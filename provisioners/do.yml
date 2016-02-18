@@ -1,0 +1,42 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    droplets:
+      - { name: frobiovox2, group: everything }
+
+  tasks:
+    - name: Provision DigitalOcean Droplets
+      digital_ocean:
+        state: "{{ item.state | default('present') }}"
+        command: droplet
+        name: "{{ item.name }}"
+        private_networking: "{{ item.private_networking | default('no') }}"
+        size_id: "{{ item.size | default('512mb') }}"
+        ## coreos
+        # image_id: 15607947
+        ## ubuntu-15-10-x64
+        image_id: "{{ item.image | default('15621816') }}"
+        region_id: "{{ item.region | default('sfo1') }}"
+        ssh_key_ids: 1694862
+        unique_name: yes
+      register: created_droplets
+      with_items: droplets
+
+    - name: Add DigitalOcean hosts to inventory
+      add_host:
+        name: "{{ item.1.droplet.ip_address }}"
+        groups: "do,{{ droplets[item.0].group }}, {{ item.1.droplet.name }}"
+        ansible_ssh_user: root
+      when: item.1.droplet is defined
+      with_indexed_items: created_droplets.results
+
+- hosts: do
+  remote_user: root
+  gather_facts: no
+
+  tasks:
+    - name: Wait for port 22 to become active
+      local_action: "wait_for port=22 host={{ inventory_hostname }}"
