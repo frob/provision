@@ -1,0 +1,90 @@
+---
+- hosts: 104.131.136.63
+  remote_user: root
+
+  vars_files:
+    - vars.yml
+
+  tasks:
+    - name: Test if admin is in the sudoers file
+      shell: grep "%admin ALL=(ALL) ALL" /etc/sudoers
+      register: sudoers_admin_all
+
+    - name: Copy sudoers file for safety
+      command: cp -f /etc/sudoers /etc/sudoers.tmp
+      when: sudoers_admin_all.stdout != '%admin ALL=(ALL) ALL'
+
+    - name: make sure we can sudo as admin group
+      lineinfile:
+        dest: /etc/sudoers.tmp
+        state: present
+        regexp: '^%admin'
+        line: '%admin ALL=(ALL) ALL'
+      when: sudoers_admin_all.stdout != '%admin ALL=(ALL) ALL'
+
+    - name: also make sure ssh-agent works via sudo
+      lineinfile:
+        dest: /etc/sudoers.tmp
+        state: present
+        regexp: '^Defaults env_keep\+\=SSH_AUTH_SOCK'
+        line: 'Defaults env_keep+=SSH_AUTH_SOCK'
+      when: sudoers_admin_all.stdout != '%admin ALL=(ALL) ALL'
+
+    - name: Final sudoers file check
+      shell: visudo -q -c -f /etc/sudoers.tmp && cp -f /etc/sudoers.tmp /etc/sudoers
+      when: sudoers_admin_all.stdout != '%admin ALL=(ALL) ALL'
+
+    - name: Remove temp sudoers file
+      file:
+        path: /etc/sudoers.tmp
+        state: absent
+      when: sudoers_admin_all.stdout != '%admin ALL=(ALL) ALL'
+
+    - name: Add admin group
+      group:
+        name: admin
+        system: yes
+        state: present
+
+    - name: Add users to servers
+      user:
+        name: "{{ item.name }}"
+        comment: "{{ item.full | default('') }}"
+        groups: "{{ item.groups | default('') }}"
+        shell: "{{ item.shell | default('/sbin/nologin') }}"
+        createhome: "{{ item.dotfiles | default(false)}}"
+        password: "{{ item.password | default('') }}"
+        state: "{{ item.state | default('present') }}"
+      with_items: users
+
+    - name: Add authorised keys
+      authorized_key:
+        user: "{{ item.name }}"
+        key: "https://github.com/{{ item.name }}.keys"
+      with_items: users
+
+    - name: Add sudo users to sudousers
+      lineinfile:
+        dest: /etc/sudoers
+        regexp: "{{ item.name }} ALL"
+        line: "{{ item.name }} ALL=(ALL) ALL"
+        state: present
+      when: "{{ item.sudo }}"
+      with_items: users
+
+    - name: Disallow root SSH access
+      lineinfile:
+        dest: /etc/ssh/sshd_config
+        regexp: "^PermitRootLogin"
+        line: "PermitRootLogin no"
+        state: present
+      notify: Restart ssh
+
+    - name: debug
+      debug:
+        var: sudoers_admin_all
+
+    - name: Restart ssh
+      service:
+        name: ssh
+        state: restarted

@@ -1,0 +1,10 @@
+---
+  users:
+    -
+      name: "username"
+      groups: "admin, example"
+      sudo: yes
+      dotfiles: yes
+      authorize_key: github
+      state: "present"
+      shell: /bin/bash

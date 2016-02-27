@@ -1,0 +1,40 @@
+---
+- hosts: 104.131.136.63
+  remote_user: root
+
+  vars:
+    ubuntu_common_required_packages:
+      - ufw
+      - fail2ban
+      - unattended-upgrades
+      - logwatch
+
+    ubuntu_common_optional_packages:
+      - mosh
+      - vim
+
+    ubuntu_common_ssh_port: 22
+    ubuntu_common_mosh_from_port: 60000
+    ubuntu_common_mosh_to_port: 60010
+
+  tasks:
+  - name: Install Ansible prerequisits
+    apt:
+      name: python
+      update_cache: yes
+      state: present
+
+  - name: Update APT package cache
+    apt:
+      update_cache: yes
+      cache_valid_time: 3600
+
+  - name: Upgrade APT to the latest packages
+    apt:
+      upgrade: safe
+
+  - name: Install required packages
+    apt:
+      state: installed
+      pkg: "{{ item }}"
+    with_items: ubuntu_common_required_packages

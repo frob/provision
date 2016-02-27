@@ -1,0 +1,12 @@
+---
+- hosts: all
+  sudo: yes
+
+  tasks:
+    - name: Copy sudoers file for safety
+      command: echo "something"
+
+    # - name: Add an authorised key to frob.
+    #   authorize_key:
+    #     user: frob
+    #     key: "{{ lookup('file', '/home/fanderson/.ssh/id_rsa.pub') }}"
