@@ -1,13 +1,13 @@
 ---
-- hosts: 104.131.136.63
-  remote_user: root
+- hosts: do
+  remote_user: "{{ user }}"
+  # Become doesn't work because it assumes my current username for logging in.
 
   vars:
     ubuntu_common_required_packages:
       - ufw
       - fail2ban
       - unattended-upgrades
-      - logwatch
 
     ubuntu_common_optional_packages:
       - mosh
@@ -38,3 +38,52 @@
       state: installed
       pkg: "{{ item }}"
     with_items: ubuntu_common_required_packages
+
+  - name: Install optional packages
+    apt:
+      state: installed
+      pkg: "{{ item }}"
+    with_items: ubuntu_common_optional_packages
+
+  - name: Adjust APT update intervals
+    copy:
+      src: config/apt_periodic
+      dest: /etc/apt/apt.conf.d/10periodic
+
+  - name: Adjust APT unattended-upgrades to only install security releases
+    lineinfile:
+      dest: /etc/apt/apt.conf.d/50unattended-upgrades
+      regexp: "$ubuntu_release-updates"
+      state: absent
+
+  - name: Allow ssh traffic
+    ufw:
+      rule: allow
+      port: "{{ ubuntu_common_ssh_port }}"
+      proto: tcp
+
+  - name: Setup ufw
+    ufw:
+      state: enabled
+      policy: deny
+
+  - name: Configure mosh port
+    ufw:
+      rule: allow
+      port: "{{ ubuntu_common_mosh_from_port }}:{{ ubuntu_common_mosh_to_port }}"
+      proto: udp
+    when: "'mosh' in ubuntu_common_optional_packages"
+
+  - name: Change ssh port
+    lineinfile:
+      dest: /etc/ssh/sshd_config
+      regexp: ^Port\s
+      line: "Port {{ ubuntu_common_ssh_port }}"
+      state: present
+    notify: Restart ssh
+
+  handlers:
+  - name: Restart ssh
+    service:
+      name: ssh
+      state: restarted

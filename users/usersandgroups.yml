@@ -1,18 +1,24 @@
 ---
-- hosts: 104.131.136.63
-  remote_user: root
+- hosts: do
+  remote_user: "{{ ansible_ssh_user | default('root')}}"
 
   vars_files:
     - vars.yml
 
   tasks:
     - name: Test if admin is in the sudoers file
-      shell: grep "%admin ALL=(ALL) ALL" /etc/sudoers
+      shell: grep "%admin ALL=(ALL) ALL" /etc/sudoers.tmp
       register: sudoers_admin_all
+      ignore_errors: true
+
+    - name: Test if ssh-agent works in sudo
+      shell: grep "Defaults env_keep+=SSH_AUTH_SOCK" /etc/sudoers
+      register: sudoers_agent
+      ignore_errors: true
 
     - name: Copy sudoers file for safety
       command: cp -f /etc/sudoers /etc/sudoers.tmp
-      when: sudoers_admin_all.stdout != '%admin ALL=(ALL) ALL'
+      # when: sudoers_admin_all.stdout == '%admin ALL=(ALL) ALL'
 
     - name: make sure we can sudo as admin group
       lineinfile:
@@ -20,7 +26,8 @@
         state: present
         regexp: '^%admin'
         line: '%admin ALL=(ALL) ALL'
-      when: sudoers_admin_all.stdout != '%admin ALL=(ALL) ALL'
+      # when: sudoers_admin_all|failed
+      register: temp_sudoers
 
     - name: also make sure ssh-agent works via sudo
       lineinfile:
@@ -28,17 +35,17 @@
         state: present
         regexp: '^Defaults env_keep\+\=SSH_AUTH_SOCK'
         line: 'Defaults env_keep+=SSH_AUTH_SOCK'
-      when: sudoers_admin_all.stdout != '%admin ALL=(ALL) ALL'
+      # when: sudoers_agent.stdout == 'Defaults env_keep+=SSH_AUTH_SOCK'
 
     - name: Final sudoers file check
       shell: visudo -q -c -f /etc/sudoers.tmp && cp -f /etc/sudoers.tmp /etc/sudoers
-      when: sudoers_admin_all.stdout != '%admin ALL=(ALL) ALL'
+      # when: sudoers_admin_all.stdout != '%admin ALL=(ALL) ALL'
 
     - name: Remove temp sudoers file
       file:
         path: /etc/sudoers.tmp
         state: absent
-      when: sudoers_admin_all.stdout != '%admin ALL=(ALL) ALL'
+      # when: sudoers_admin_all.stdout != '%admin ALL=(ALL) ALL' | sudoers_agent.stdout != 'Defaults env_keep+=SSH_AUTH_SOCK'
 
     - name: Add admin group
       group:
@@ -80,9 +87,13 @@
         state: present
       notify: Restart ssh
 
-    - name: debug
-      debug:
-        var: sudoers_admin_all
+    - name: Disallow passoword authentication
+      lineinfile:
+        dest: /etc/ssh/sshd_config
+        regexp: "^PasswordAuthentication"
+        line: "PasswordAuthentication no"
+        state: present
+      notify: Restart ssh
 
     - name: Restart ssh
       service:

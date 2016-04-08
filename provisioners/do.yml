@@ -17,8 +17,8 @@
         size_id: "{{ item.size | default('512mb') }}"
         ## coreos
         # image_id: 15607947
-        ## ubuntu-15-10-x64
-        image_id: "{{ item.image | default('15621816') }}"
+        ## ubuntu-14-04-x64
+        image_id: "{{ item.image | default('15943679') }}" #15943679 ## 15.10-x64 #15621816
         region_id: "{{ item.region | default('sfo1') }}"
         ssh_key_ids: 1694862
         unique_name: yes
@@ -40,3 +40,4 @@
   tasks:
     - name: Wait for port 22 to become active
       local_action: "wait_for port=22 host={{ inventory_hostname }}"
+      when: "{{ wait_for_port | default(true) }}"

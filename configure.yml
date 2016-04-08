@@ -1,12 +1,17 @@
 ---
-- hosts: all
-  sudo: yes
+- hosts: do
+  remote_user: "{{ user }}"
+
+  vars:
+    packages:
+      - nginx
+      - docker
+      - git
+      - ruby
 
   tasks:
-    - name: Copy sudoers file for safety
-      command: echo "something"
-
-    # - name: Add an authorised key to frob.
-    #   authorize_key:
-    #     user: frob
-    #     key: "{{ lookup('file', '/home/fanderson/.ssh/id_rsa.pub') }}"
+    - name: install packages
+      apt:
+        state: installed
+        pkg: "{{ item }}"
+      with_items: packages

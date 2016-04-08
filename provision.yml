@@ -1,5 +1,3 @@
 ---
 - include: provisioners/do.yml
-- include: prerequisits.yml
-- include: users/usersandgroups.yml
-# - include: configure.yml
+- include: configure.yml
